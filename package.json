@@ -1,0 +1,31 @@
+{
+  "name": "gemini-bulk-image-generator",
+  "version": "1.0.0",
+  "description": "Multi-account bulk image generation through a Gemini Canvas tool via Playwright CDP",
+  "main": "run.js",
+  "scripts": {
+    "open": "node open-batch.js",
+    "run": "node run.js",
+    "inspect": "node tools/inspect.js"
+  },
+  "keywords": [
+    "gemini",
+    "canvas",
+    "bulk",
+    "image-generation",
+    "playwright",
+    "automation"
+  ],
+  "author": "professer-create",
+  "license": "SEE LICENSE IN LICENSE",
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/professer-create/gemini-bulk-image-generator.git"
+  }
+}

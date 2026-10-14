@@ -1,0 +1,6 @@
+{
+  "toolUrl": "https://gemini.google.com/share/0071d13c654f",
+  "basePort": 9300,
+  "batchSize": 5,
+  "totalProfiles": 30
+}

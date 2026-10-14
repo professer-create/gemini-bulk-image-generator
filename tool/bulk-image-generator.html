@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Image Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Include JSZip library for zipping files (for image download) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020D07; /* Deep Dark Green */
+            color: #FFFFFF; /* Bright White */
+            min-height: 100vh;
+        }
+        
+        /* Custom spinner */
+        .spinner {
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 3px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #020D07; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #0B2C19; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #144225; 
+        }
+        
+        textarea::placeholder, input::placeholder {
+            color: #6B9B7E; 
+        }
+        
+        #toast {
+            position: fixed;
+            bottom: -100px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 1.5rem;
+            background-color: #ef4444; 
+            color: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+            transition: bottom 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            z-index: 100;
+            font-weight: 500;
+        }
+        #toast.show {
+            bottom: 30px;
+        }
+    </style>
+</head>
+<body class="flex flex-col h-screen overflow-hidden">
+
+    <!-- Top Header Bar -->
+    <header class="w-full bg-[#05170C] border-b border-[#0B2C19] py-4 flex flex-col items-center justify-center shadow-[0_4px_20px_rgba(0,0,0,0.6)] z-20">
+        <h1 class="text-3xl font-extrabold text-white tracking-wide drop-shadow-md">
+            Bulk Image Generator
+        </h1>
+        <span class="text-sm text-[#00C853] font-bold tracking-widest mt-1 uppercase shadow-black drop-shadow-sm">
+            Creator Core By Waris Shah
+        </span>
+    </header>
+
+    <!-- Main Content Area -->
+    <div class="flex flex-1 overflow-hidden flex-col md:flex-row relative">
+
+        <!-- Left Panel: Input & Controls -->
+        <aside class="md:w-1/3 xl:w-1/4 bg-[#05170C] p-6 flex flex-col shadow-[4px_0_24px_rgba(0,0,0,0.5)] border-r border-[#0B2C19] overflow-y-auto z-10">
+            
+            <div id="image-controls" class="flex flex-col flex-grow space-y-5">
+                <!-- Settings Group -->
+                <div class="space-y-2">
+                    <label for="aspectRatio" class="block text-sm font-semibold text-white">Aspect Ratio</label>
+                    <select id="aspectRatio" name="aspectRatio" class="w-full bg-[#091F11] border border-[#144225] text-white font-medium rounded-md p-3 focus:ring-2 focus:ring-[#00C853] focus:border-[#00C853] transition duration-150 outline-none shadow-inner cursor-pointer">
+                        <option value="square">Square (1:1) - 1536x1536</option>
+                        <option value="portrait_4_5">Instagram (4:5) - 1080x1350</option>
+                        <option value="portrait">Portrait (9:16) - 1024x1792</option>
+                        <option value="landscape">Landscape (16:9) - 1792x1024</option>
+                    </select>
+                </div>
+
+                <!-- Character Consistency (CC) Group -->
+                <div class="space-y-4 pt-4 border-t border-[#0B2C19]">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-bold text-[#00C853] flex items-center tracking-wide">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2">
+                              <path d="M10 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM3.465 14.493a1.23 1.23 0 0 0 .41 1.412A9.957 9.957 0 0 0 10 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 0 0-13.074.003Z" />
+                            </svg>
+                            CHARACTER CONSISTENCY
+                        </h3>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="ccToggle" class="sr-only peer">
+                          <div class="w-10 h-5 bg-[#0B2C19] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00C853] shadow-inner"></div>
+                        </label>
+                    </div>
+                    <div id="ccOptionsContainer" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-200 hidden bg-[#091F11] p-4 rounded-lg border border-[#144225]">
+                        <div>
+                            <label for="ccText" class="block text-xs font-semibold text-gray-300 mb-1.5">Text Based (Character Description)</label>
+                            <textarea id="ccText" rows="2" class="w-full bg-[#05170C] border border-[#144225] text-white rounded-md p-2.5 text-sm focus:ring-2 focus:ring-[#00C853] focus:border-transparent resize-none outline-none shadow-inner" placeholder="e.g., A young man with messy brown hair, round glasses..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 mb-1.5">Image Based (Subject Upload)</label>
+                            <input type="file" id="ccImage" accept="image/*" class="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-[#00C853]/20 file:text-[#00C853] hover:file:bg-[#00C853]/30 cursor-pointer transition-colors">
+                            <div id="ccImagePreviewContainer" class="hidden mt-3 relative w-20 h-20 rounded-md border border-[#144225] overflow-hidden shadow-md">
+                                <img id="ccImagePreview" class="w-full h-full object-cover" />
+                                <button id="clearCcImage" class="absolute top-0 right-0 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-bl-md text-sm hover:bg-red-500 transition-colors shadow-md">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Style Consistency (SC) Group -->
+                <div class="space-y-4 pt-4 border-t border-[#0B2C19]">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-bold text-[#00C853] flex items-center tracking-wide">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2">
+                                <path fill-rule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902 1.168.188 2.352.327 3.55.414.28.02.521.18.643.413l1.5 2.947a.75.75 0 0 0 1.354 0l1.5-2.947a.75.75 0 0 1 .643-.413c1.198-.087 2.382-.226 3.55-.414 1.437-.231 2.43-1.49 2.43-2.902V5.426c0-1.413-.993-2.67-2.43-2.902A41.289 41.289 0 0 0 10 2ZM6.75 6a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Zm0 3a.75.75 0 0 0 0 1.5h6.5a.75.75 0 0 0 0-1.5h-6.5Z" clip-rule="evenodd" />
+                            </svg>
+                            STYLE CONSISTENCY
+                        </h3>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" id="scToggle" class="sr-only peer">
+                          <div class="w-10 h-5 bg-[#0B2C19] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#00C853] shadow-inner"></div>
+                        </label>
+                    </div>
+                    <div id="scOptionsContainer" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-200 hidden bg-[#091F11] p-4 rounded-lg border border-[#144225]">
+                        <div>
+                            <label for="scText" class="block text-xs font-semibold text-gray-300 mb-1.5">Text Based (Style Description)</label>
+                            <textarea id="scText" rows="2" class="w-full bg-[#05170C] border border-[#144225] text-white rounded-md p-2.5 text-sm focus:ring-2 focus:ring-[#00C853] focus:border-transparent resize-none outline-none shadow-inner" placeholder="e.g., Cyberpunk aesthetic, neon lighting, oil painting..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-300 mb-1.5">Image Based (Style Upload)</label>
+                            <input type="file" id="scImage" accept="image/*" class="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-bold file:bg-[#00C853]/20 file:text-[#00C853] hover:file:bg-[#00C853]/30 cursor-pointer transition-colors">
+                            <div id="scImagePreviewContainer" class="hidden mt-3 relative w-20 h-20 rounded-md border border-[#144225] overflow-hidden shadow-md">
+                                <img id="scImagePreview" class="w-full h-full object-cover" />
+                                <button id="clearScImage" class="absolute top-0 right-0 bg-red-600 text-white w-6 h-6 flex items-center justify-center rounded-bl-md text-sm hover:bg-red-500 transition-colors shadow-md">&times;</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Prompts Group -->
+                <div class="flex flex-col flex-grow min-h-[180px] pt-4 border-t border-[#0B2C19]">
+                    <div class="flex justify-between items-center mb-2">
+                        <label for="prompts" class="block text-sm font-semibold text-white">Image Prompts</label>
+                        <span class="text-xs text-[#6B9B7E] font-medium px-2 py-1 bg-[#091F11] rounded-md border border-[#144225]">One per line</span>
+                    </div>
+                    <textarea id="prompts"
+                        class="flex-grow w-full p-4 bg-[#091F11] border border-[#144225] rounded-md shadow-inner resize-none focus:outline-none focus:ring-2 focus:ring-[#00C853] focus:border-transparent text-white text-sm leading-relaxed"
+                        placeholder="A vibrant oil painting of a futuristic city...&#10;A minimalist vector logo of a wolf..."></textarea>
+                    <p id="prompt-count" class="text-sm font-bold text-[#00C853] text-right mt-2">0 prompts</p>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="mt-4 space-y-3 pt-4 border-t border-[#0B2C19]">
+                    <button id="generate-btn"
+                        class="w-full flex items-center justify-center bg-[#00C853] text-[#020D07] font-extrabold text-base py-3.5 px-4 rounded-md shadow-[0_0_15px_rgba(0,200,83,0.3)] hover:shadow-[0_0_25px_rgba(0,200,83,0.5)] hover:bg-[#00E65F] focus:outline-none focus:ring-2 focus:ring-[#00C853] focus:ring-offset-2 focus:ring-offset-[#05170C] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 mr-2">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm.75-11.25a.75.75 0 0 0-1.5 0v2.5h-2.5a.75.75 0 0 0 0 1.5h2.5v2.5a.75.75 0 0 0 1.5 0v-2.5h2.5a.75.75 0 0 0 0-1.5h-2.5v-2.5Z" clip-rule="evenodd" />
+                        </svg>
+                        <span>GENERATE IMAGES</span>
+                    </button>
+                    
+                    <button id="stop-btn"
+                        class="w-full flex items-center justify-center bg-red-600 text-white font-bold py-3.5 px-4 rounded-md shadow-md hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-[#05170C] transition duration-150 hidden">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 mr-2">
+                            <path d="M5.25 3A2.25 2.25 0 0 0 3 5.25v9.5A2.25 2.25 0 0 0 5.25 17h9.5A2.25 2.25 0 0 0 17 14.75v-9.5A2.25 2.25 0 0 0 14.75 3h-9.5Z" />
+                        </svg>
+                        <span>STOP GENERATION</span>
+                    </button>
+
+                    <button id="download-all-btn"
+                        class="w-full flex items-center justify-center bg-[#0B2C19] text-white font-bold py-3 px-4 rounded-md shadow-md hover:bg-[#144225] border border-[#144225] focus:outline-none focus:ring-2 focus:ring-[#00C853] focus:ring-offset-2 focus:ring-offset-[#05170C] transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 mr-2">
+                            <path d="M10.75 2.75a.75.75 0 0 0-1.5 0v8.614L6.295 8.235a.75.75 0 1 0-1.09 1.03l4.25 4.5a.75.75 0 0 0 1.09 0l4.25-4.5a.75.75 0 0 0-1.09-1.03l-2.955 3.129V2.75Z" />
+                            <path d="M3.5 12.75a.75.75 0 0 0-1.5 0v2.5A2.75 2.75 0 0 0 4.75 18h10.5A2.75 2.75 0 0 0 18 15.25v-2.5a.75.75 0 0 0-1.5 0v2.5c0 .69-.56 1.25-1.25 1.25H4.75c-.69 0-1.25-.56-1.25-1.25v-2.5Z" />
+                        </svg>
+                        <span>Download All (.zip)</span>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Right Panel: Output -->
+        <main id="output-container" class="md:w-2/3 xl:w-3/4 flex-grow p-6 overflow-y-auto relative bg-[#020D07]">
+            
+            <!-- Bulk Action Bar -->
+            <div id="bulk-action-bar" class="hidden flex justify-between items-center bg-[#05170C]/95 backdrop-blur-md p-3.5 rounded-lg mb-6 border border-[#0B2C19] sticky top-0 z-30 shadow-[0_10px_20px_rgba(0,0,0,0.4)] transition-all">
+                <div class="flex items-center space-x-4">
+                    <label class="flex items-center text-white font-semibold text-sm cursor-pointer hover:text-[#00C853] transition-colors">
+                        <input type="checkbox" id="select-all-checkbox" class="mr-2.5 rounded border-[#144225] text-[#00C853] focus:ring-[#00C853] w-5 h-5 bg-[#020D07] cursor-pointer"> Select All
+                    </label>
+                    <button id="select-failed-btn" class="hidden text-xs bg-red-900/40 text-red-400 hover:bg-red-600 hover:text-white py-1.5 px-3 rounded-md border border-red-800 transition-colors shadow-sm font-bold tracking-wide">
+                        Select Failed
+                    </button>
+                    <span id="selected-count" class="text-sm text-[#00C853] font-bold tracking-wide">0 selected</span>
+                </div>
+                <button id="bulk-regen-btn" class="bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold py-2 px-4 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_0_10px_rgba(245,158,11,0.3)] flex items-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1.5">
+                        <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z" clip-rule="evenodd" />
+                    </svg>
+                    Regenerate Selected
+                </button>
+            </div>
+
+            <!-- Image Grid Area -->
+            <div id="image-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 pb-6">
+                <div id="placeholder" class="col-span-full h-full min-h-[60vh] flex flex-col items-center justify-center text-center">
+                    <div class="bg-[#05170C] p-8 rounded-full shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-[#0B2C19] mb-6">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#00C853" class="w-20 h-20">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                        </svg>
+                    </div>
+                    <h2 class="text-3xl font-extrabold mt-4 text-white tracking-wide">Ready to Generate</h2>
+                    <p class="text-lg mt-3 text-gray-400 font-medium max-w-md mx-auto">Add your creative prompts on the left and click <span class="text-[#00C853]">Generate Images</span> to bring them to life.</p>
+                </div>
+            </div>
+            
+        </main>
+    </div>
+
+    <!-- Regeneration Modal -->
+    <div id="regen-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div class="bg-[#05170C] p-6 rounded-lg shadow-2xl border border-[#144225] w-full max-w-md">
+            <h3 class="text-xl font-extrabold text-white mb-2 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-6 h-6 mr-2 text-amber-500">
+                    <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z" clip-rule="evenodd" />
+                </svg>
+                Regenerate Image
+            </h3>
+            <p class="text-sm text-gray-400 mb-4 font-medium">Provide a custom prompt. If left empty, the AI will automatically enhance the original prompt for better results.</p>
+            <textarea id="regen-custom-prompt" rows="4" class="w-full bg-[#020D07] border border-[#144225] text-white rounded-md p-3 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent resize-none mb-3 shadow-inner outline-none" placeholder="Enter custom prompt here (optional)..."></textarea>
+            
+            <label class="flex items-start text-sm text-white font-medium mb-6 cursor-pointer group">
+                <input type="checkbox" id="regen-original-prompt-cb" class="mt-0.5 mr-2.5 rounded border-[#144225] text-amber-500 focus:ring-amber-500 w-4 h-4 bg-[#020D07] cursor-pointer" checked>
+                <span>Retry original prompt <span class="text-xs text-gray-500 block mt-0.5 font-normal">Keep checked if you encountered a generation error</span></span>
+            </label>
+
+            <div class="flex justify-end space-x-3">
+                <button id="cancel-regen-btn" class="px-5 py-2 bg-[#0B2C19] hover:bg-[#144225] text-white text-sm font-bold rounded-md transition-colors shadow-sm border border-[#144225]">Cancel</button>
+                <button id="confirm-regen-btn" class="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-black text-sm font-bold rounded-md transition-colors shadow-[0_0_10px_rgba(245,158,11,0.3)] flex items-center">
+                    Start Regeneration
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Modal -->
+    <div id="fullscreen-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md p-4">
+        <button id="close-fullscreen-btn" class="absolute top-6 right-6 text-white hover:text-red-500 transition-colors bg-[#05170C] hover:bg-[#0B2C19] p-2.5 rounded-full shadow-[0_0_15px_rgba(0,0,0,0.8)] border border-[#144225]">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+        <img id="fullscreen-img" class="max-w-full max-h-[90vh] object-contain rounded-md shadow-2xl ring-1 ring-white/10" src="" alt="Fullscreen Preview">
+    </div>
+
+    <!-- Error Toast Notification -->
+    <div id="toast">
+        <span id="toast-message"></span>
+    </div>
+
+    <script type="module">
+        // --- DOM Elements ---
+        const imageControls = document.getElementById('image-controls');
+        
+        // Image Elements
+        const promptInput = document.getElementById('prompts');
+        const promptCount = document.getElementById('prompt-count');
+        const generateBtn = document.getElementById('generate-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const downloadAllBtn = document.getElementById('download-all-btn');
+        const imageGrid = document.getElementById('image-grid');
+        const placeholder = document.getElementById('placeholder');
+        const aspectRatioSelect = document.getElementById('aspectRatio');
+        
+        // CC Elements
+        const ccToggle = document.getElementById('ccToggle');
+        const ccOptionsContainer = document.getElementById('ccOptionsContainer');
+        const ccText = document.getElementById('ccText');
+        const ccImageInput = document.getElementById('ccImage');
+        const ccImagePreviewContainer = document.getElementById('ccImagePreviewContainer');
+        const ccImagePreview = document.getElementById('ccImagePreview');
+        const clearCcImage = document.getElementById('clearCcImage');
+
+        // SC Elements
+        const scToggle = document.getElementById('scToggle');
+        const scOptionsContainer = document.getElementById('scOptionsContainer');
+        const scText = document.getElementById('scText');
+        const scImageInput = document.getElementById('scImage');
+        const scImagePreviewContainer = document.getElementById('scImagePreviewContainer');
+        const scImagePreview = document.getElementById('scImagePreview');
+        const clearScImage = document.getElementById('clearScImage');
+
+        // Bulk Action & Modal Elements
+        const selectAllCheckbox = document.getElementById('select-all-checkbox');
+        const selectFailedBtn = document.getElementById('select-failed-btn');
+        const bulkActionBar = document.getElementById('bulk-action-bar');
+        const selectedCountSpan = document.getElementById('selected-count');
+        const bulkRegenBtn = document.getElementById('bulk-regen-btn');
+        
+        const regenModal = document.getElementById('regen-modal');
+        const regenCustomPrompt = document.getElementById('regen-custom-prompt');
+        const regenOriginalPromptCb = document.getElementById('regen-original-prompt-cb');
+        const cancelRegenBtn = document.getElementById('cancel-regen-btn');
+        const confirmRegenBtn = document.getElementById('confirm-regen-btn');
+        
+        const fullscreenModal = document.getElementById('fullscreen-modal');
+        const fullscreenImg = document.getElementById('fullscreen-img');
+        const closeFullscreenBtn = document.getElementById('close-fullscreen-btn');
+
+        // General UI
+        const toast = document.getElementById('toast');
+        const toastMessage = document.getElementById('toast-message');
+
+        // --- State ---
+        let generatedImages = []; // Stores { prompt, blob, filename, aspectRatio, error, options }
+        let isStopping = false; 
+        
+        let ccImageData = null;
+        let ccImageMimeType = null;
+        let scImageData = null;
+        let scImageMimeType = null;
+
+        let pendingRegenCards = []; 
+
+        // --- Constants ---
+        const IMAGE_API_MODEL = "gemini-2.5-flash-image-preview";
+        const TEXT_API_MODEL = "gemini-3-flash-preview";
+        const API_KEY = ""; // Handled seamlessly
+        const IMAGE_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_API_MODEL}:generateContent?key=${API_KEY}`;
+        const TEXT_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${TEXT_API_MODEL}:generateContent?key=${API_KEY}`;
+        
+        const MAX_RETRIES = 5;
+        const RETRY_DELAY = 500; 
+
+        // --- Event Listeners ---
+        promptInput.addEventListener('input', () => {
+            const prompts = getPrompts();
+            promptCount.textContent = `${prompts.length} ${prompts.length === 1 ? 'prompt' : 'prompts'}`;
+        });
+
+        generateBtn.addEventListener('click', handleGeneration);
+        
+        stopBtn.addEventListener('click', () => {
+            isStopping = true;
+            showToast("Stopping generation...", "info");
+        });
+
+        downloadAllBtn.addEventListener('click', handleDownloadAll);
+
+        ccToggle.addEventListener('change', (e) => {
+            if (e.target.checked) ccOptionsContainer.classList.remove('opacity-50', 'pointer-events-none', 'hidden');
+            else ccOptionsContainer.classList.add('opacity-50', 'pointer-events-none', 'hidden');
+        });
+
+        scToggle.addEventListener('change', (e) => {
+            if (e.target.checked) scOptionsContainer.classList.remove('opacity-50', 'pointer-events-none', 'hidden');
+            else scOptionsContainer.classList.add('opacity-50', 'pointer-events-none', 'hidden');
+        });
+
+        ccImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    ccImagePreview.src = event.target.result;
+                    ccImagePreviewContainer.classList.remove('hidden');
+                    ccImageData = event.target.result.split(',')[1];
+                    ccImageMimeType = file.type;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        clearCcImage.addEventListener('click', () => {
+            ccImageInput.value = '';
+            ccImagePreviewContainer.classList.add('hidden');
+            ccImageData = null;
+            ccImageMimeType = null;
+        });
+
+        scImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    scImagePreview.src = event.target.result;
+                    scImagePreviewContainer.classList.remove('hidden');
+                    scImageData = event.target.result.split(',')[1];
+                    scImageMimeType = file.type;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+        
+        clearScImage.addEventListener('click', () => {
+            scImageInput.value = '';
+            scImagePreviewContainer.classList.add('hidden');
+            scImageData = null;
+            scImageMimeType = null;
+        });
+
+        selectAllCheckbox.addEventListener('change', (e) => {
+            const checkboxes = document.querySelectorAll('.image-select-checkbox');
+            checkboxes.forEach(cb => cb.checked = e.target.checked);
+            toggleBulkActions();
+        });
+
+        selectFailedBtn.addEventListener('click', () => {
+            document.querySelectorAll('.image-card-group').forEach(card => {
+                const cb = card.querySelector('.image-select-checkbox');
+                if (cb) {
+                    cb.checked = card.classList.contains('border-red-600');
+                }
+            });
+            toggleBulkActions();
+        });
+
+        bulkRegenBtn.addEventListener('click', () => {
+            const checkedBoxes = document.querySelectorAll('.image-select-checkbox:checked');
+            const cards = Array.from(checkedBoxes).map(cb => cb.closest('.image-card-group'));
+            openRegenModal(cards);
+        });
+
+        cancelRegenBtn.addEventListener('click', () => {
+            regenModal.classList.add('hidden');
+            pendingRegenCards = [];
+        });
+
+        confirmRegenBtn.addEventListener('click', () => {
+            const customPrompt = regenCustomPrompt.value.trim();
+            regenModal.classList.add('hidden');
+            processRegeneration(pendingRegenCards, customPrompt);
+        });
+
+        closeFullscreenBtn.addEventListener('click', () => {
+            fullscreenModal.classList.add('hidden');
+            fullscreenImg.src = '';
+        });
+
+        fullscreenModal.addEventListener('click', (e) => {
+            if(e.target === fullscreenModal) {
+                fullscreenModal.classList.add('hidden');
+                fullscreenImg.src = '';
+            }
+        });
+
+        // --- Main Generation Logic ---
+        async function handleGeneration() {
+            const prompts = getPrompts();
+            if (prompts.length === 0) {
+                showToast("Please enter at least one prompt.", "error");
+                return;
+            }
+
+            clearGrid();
+            generatedImages = new Array(prompts.length).fill(null);
+            isStopping = false;
+            let hasSuccess = false;
+            
+            setLoading(true, "PREPARING...");
+
+            const cardPlaceholders = [];
+            for (let i = 0; i < prompts.length; i++) {
+                const placeholderCard = document.createElement('div');
+                placeholderCard.className = 'bg-[#05170C] rounded-lg shadow-xl border border-[#0B2C19] aspect-square flex flex-col items-center justify-center p-4 animate-pulse relative';
+                placeholderCard.innerHTML = `
+                    <div class="w-12 h-12 border-4 border-[#00C853] border-t-transparent rounded-full animate-spin mb-4"></div>
+                    <p class="text-xs text-gray-400 text-center italic line-clamp-3">"${prompts[i]}"</p>
+                    <p class="text-[10px] text-[#00C853] font-bold mt-2 absolute bottom-4 uppercase tracking-wider">Pending...</p>
+                `;
+                imageGrid.appendChild(placeholderCard);
+                cardPlaceholders.push(placeholderCard);
+            }
+            hidePlaceholder();
+
+            setLoading(true, "ANALYZING...");
+            const { finalCcText, finalScText } = await prepareConsistencyTexts();
+            
+            const runOptions = {
+                ccEnabled: ccToggle.checked,
+                ccImageData: ccToggle.checked ? ccImageData : null,
+                ccImageMimeType: ccToggle.checked ? ccImageMimeType : null,
+                finalCcText: ccToggle.checked ? finalCcText : null,
+                scEnabled: scToggle.checked,
+                scImageData: scToggle.checked ? scImageData : null,
+                scImageMimeType: scToggle.checked ? scImageMimeType : null,
+                finalScText: scToggle.checked ? finalScText : null
+            };
+
+            const CONCURRENCY_LIMIT = 10; 
+            let activeGenerations = 0;
+            let currentIndex = 0;
+            let completedCount = 0;
+
+            try {
+                await new Promise((resolve, reject) => {
+                    async function processQueue() {
+                        if (isStopping || currentIndex >= prompts.length) {
+                            if (activeGenerations === 0) resolve();
+                            return;
+                        }
+
+                        const i = currentIndex++;
+                        activeGenerations++;
+                        const prompt = prompts[i];
+                        
+                        const statusEl = cardPlaceholders[i].querySelector('p:last-child');
+                        if(statusEl) statusEl.textContent = 'GENERATING...';
+
+                        try {
+                            const { base64Data, aspectRatio } = await generateImage(prompt, aspectRatioSelect.value, runOptions);
+                            const blob = await (await fetch(`data:image/png;base64,${base64Data}`)).blob();
+                            const filename = createFilename(prompt, i);
+                            
+                            generatedImages[i] = { prompt, blob, filename, aspectRatio, options: runOptions };
+                            
+                            const card = createCardElement(blob, prompt, filename, aspectRatio, i);
+                            cardPlaceholders[i].replaceWith(card);
+                            hasSuccess = true;
+                        } catch (error) {
+                            console.error(`Failed to generate image for prompt: "${prompt}"`, error);
+                            generatedImages[i] = { error: true, prompt, aspectRatio: aspectRatioSelect.value, options: runOptions };
+                            const errorCard = createFailureCardElement(prompt, error.message, aspectRatioSelect.value, i);
+                            cardPlaceholders[i].replaceWith(errorCard);
+                        } finally {
+                            completedCount++;
+                            const buttonText = generateBtn.querySelector('span');
+                            if(buttonText) buttonText.textContent = `GENERATING (${completedCount}/${prompts.length})...`;
+                            
+                            activeGenerations--;
+                            
+                            if (completedCount === prompts.length || (isStopping && activeGenerations === 0)) {
+                                resolve();
+                            } else {
+                                processQueue();
+                            }
+                        }
+                    }
+
+                    const initialWorkers = Math.min(CONCURRENCY_LIMIT, prompts.length);
+                    for (let w = 0; w < initialWorkers; w++) {
+                        processQueue();
+                    }
+                });
+            } catch (error) {
+                console.error("An unexpected error occurred during batch generation:", error);
+                showToast("An unexpected error occurred. Check console.", "error");
+            } finally {
+                generatedImages.forEach((img, i) => {
+                    if (img === null || img === 'processing') {
+                         generatedImages[i] = { error: true, stopped: true, options: runOptions };
+                    }
+                });
+                cardPlaceholders.forEach((el, i) => {
+                    if (document.body.contains(el)) {
+                         const errorCard = createFailureCardElement(prompts[i], "Stopped by user", aspectRatioSelect.value, i);
+                         el.replaceWith(errorCard);
+                    }
+                });
+
+                setLoading(false);
+                if (isStopping) { showToast("Generation stopped.", "info"); isStopping = false; } 
+                else { showToast("Generation complete!", "success"); }
+                
+                const hasValidImages = generatedImages.some(img => img && img.blob);
+                if (hasValidImages) downloadAllBtn.disabled = false;
+                
+                updateBulkActionBar(); 
+            }
+        }
+        
+        async function prepareConsistencyTexts() {
+            let finalCcText = ccText.value.trim();
+            let finalScText = scText.value.trim();
+
+            const extractionPromises = [];
+            let ccIndex = -1;
+            let scIndex = -1;
+
+            if (ccToggle.checked && ccImageData) {
+                const extractionPrompt = "Analyze this image and provide a highly detailed physical description of the main character for an artist to recreate them. Focus on facial features, bone structure, eye shape and color, nose shape, hair color and style, approximate age, and any distinct visual traits. Describe their default clothing, but explicitly state that clothing should adapt to new scene contexts. Do not describe the background or action. Focus on an accurate artistic blueprint of the person's appearance.";
+                const p = generateTextWithImage(extractionPrompt, ccImageData, ccImageMimeType).catch(e => {
+                    console.error("Failed to extract CC text.", e.message);
+                    return null;
+                });
+                extractionPromises.push(p);
+                ccIndex = extractionPromises.length - 1;
+            }
+
+            if (scToggle.checked && scImageData) {
+                const extractionPrompt = "Analyze this image and provide a highly detailed description of its visual style, aesthetic, color palette, lighting, mood and art medium (e.g., oil painting, cyberpunk, photorealistic). Do not describe the specific subjects or layout, ONLY the artistic style and visual vibe.";
+                const p = generateTextWithImage(extractionPrompt, scImageData, scImageMimeType).catch(e => {
+                    console.error("Failed to extract SC text.", e.message);
+                    return null;
+                });
+                extractionPromises.push(p);
+                scIndex = extractionPromises.length - 1;
+            }
+
+            if (extractionPromises.length > 0) {
+                const results = await Promise.all(extractionPromises);
+                if (ccIndex !== -1 && results[ccIndex]) {
+                    finalCcText = finalCcText ? `${finalCcText}. Additional physical details: ${results[ccIndex]}` : results[ccIndex];
+                }
+                if (scIndex !== -1 && results[scIndex]) {
+                    finalScText = finalScText ? `${finalScText}. Style details: ${results[scIndex]}` : results[scIndex];
+                }
+            }
+
+            return { finalCcText, finalScText };
+        }
+
+        async function generateImage(prompt, aspectRatio, options) {
+            let superPrompt = "You are a master photographer and digital artist. Generate a highly logical, coherent, and realistic scene with physically plausible compositions. Avoid mutated features or nonsensical physics. CRITICAL INSTRUCTION: There must be absolutely NO text, NO words, NO letters, NO watermarks, and NO signatures anywhere in the image. ";
+            const parts = [];
+
+            if (options.ccEnabled && options.finalCcText) {
+                superPrompt += `[STRICT CHARACTER CONSISTENCY]: The main character MUST have the exact same facial identity, bone structure, and physical traits as described here: [${options.finalCcText}]. Their face must remain 100% identical and recognizable across different environments. [CLOTHING & SCENE RULE]: Dress the character naturally according to the requested scene's context. The clothes should fit the environment perfectly and remain logically consistent while the scene is ongoing. Do NOT alter their core physical identity (face, hair, body type) under any circumstances. `;
+            }
+
+            if (options.scEnabled && options.finalScText) {
+                superPrompt += `The overall visual style, aesthetics, and vibe MUST match this description perfectly: [${options.finalScText}]. `;
+            }
+
+            superPrompt += `Scene to generate: ${prompt}`;
+            parts.unshift({ text: superPrompt });
+
+            if (options.ccEnabled && options.ccImageData) {
+                parts.unshift({
+                    inlineData: {
+                        mimeType: options.ccImageMimeType,
+                        data: options.ccImageData
+                    }
+                });
+                parts.unshift({ text: "Use this image as the STRICT REFERENCE for the main character's physical appearance in the scene. Their face MUST match this reference image exactly." });
+            }
+
+            if (options.scEnabled && options.scImageData) {
+                 parts.unshift({
+                    inlineData: {
+                        mimeType: options.scImageMimeType,
+                        data: options.scImageData
+                    }
+                });
+                parts.unshift({ text: "Use this image as the STRICT REFERENCE for the artistic style, aesthetic, and visual mood of the scene." });
+            }
+            
+            let ratioStr = '1:1';
+            if (aspectRatio === 'portrait') ratioStr = '9:16';
+            if (aspectRatio === 'landscape') ratioStr = '16:9';
+            if (aspectRatio === 'portrait_4_5') ratioStr = '3:4'; // API natively supports 3:4 which covers 4:5 needs
+
+            const payload = {
+                contents: [{ role: 'user', parts: parts }],
+                generationConfig: {
+                    responseModalities: ['IMAGE'],
+                    imageConfig: { aspectRatio: ratioStr }
+                }
+            };
+
+            for (let i = 0; i < MAX_RETRIES; i++) {
+                try {
+                    const response = await fetch(IMAGE_API_URL, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        let errorMessage = `API request failed with status ${response.status}`;
+                        try {
+                            const errorBody = await response.json();
+                            errorMessage = errorBody.error?.message || errorMessage;
+                        } catch {
+                            const errorText = await response.text();
+                            errorMessage = `${errorMessage}: ${errorText.substring(0, 100)}...`;
+                        }
+                        throw new Error(errorMessage);
+                    }
+
+                    const result = await response.json();
+                    const part = result?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+                    const base64Data = part?.inlineData?.data;
+                    
+                    if (!base64Data) throw new Error("No image data returned. Safety filter or invalid prompt.");
+                    
+                    return { base64Data, aspectRatio };
+
+                } catch (error) {
+                    console.warn(`API call failed for prompt "${prompt}" (Attempt ${i + 1}/${MAX_RETRIES}):`, error.message);
+                    if (i === MAX_RETRIES - 1) throw new Error(`API call failed after all retries. ${error.message || 'Failed to fetch'}`);
+                    await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * Math.pow(2, i)));
+                }
+            }
+            throw new Error(`API call failed for prompt "${prompt}" after all retries.`);
+        }
+
+        // --- Card Components ---
+
+        function createCardElement(imageBlob, prompt, filename, aspectRatio, globalIndex) {
+            const imageUrl = URL.createObjectURL(imageBlob);
+            const aspectRatioClass = getAspectRatioClass(aspectRatio);
+
+            const card = document.createElement('div');
+            card.className = 'image-card-group bg-[#05170C] rounded-lg shadow-lg overflow-hidden flex flex-col transition-all duration-300 transform hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(0,200,83,0.15)] border border-[#144225] hover:border-[#00C853]/50 relative group';
+            card.dataset.globalIndex = globalIndex;
+            card.dataset.aspectRatio = aspectRatio;
+            card.dataset.originalPrompt = prompt;
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.title = 'Select';
+            checkbox.className = 'image-select-checkbox absolute top-3 left-3 w-5 h-5 z-10 cursor-pointer rounded border-[#144225] text-[#00C853] bg-[#020D07] focus:ring-[#00C853] shadow-md opacity-0 group-hover:opacity-100 transition-opacity checked:opacity-100';
+            checkbox.addEventListener('change', toggleBulkActions);
+
+            const imgContainer = document.createElement('div');
+            imgContainer.className = `w-full ${aspectRatioClass} bg-[#020D07] overflow-hidden cursor-pointer relative`;
+            imgContainer.addEventListener('click', () => openFullscreen(imageUrl));
+            
+            const overlayIcon = document.createElement('div');
+            overlayIcon.className = 'absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100 pointer-events-none z-10';
+            overlayIcon.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-white drop-shadow-lg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+            `;
+
+            const img = document.createElement('img');
+            img.src = imageUrl;
+            img.alt = prompt;
+            img.className = 'w-full h-full object-cover';
+            imgContainer.appendChild(img);
+            imgContainer.appendChild(overlayIcon);
+            
+            const content = document.createElement('div');
+            content.className = 'p-4 flex flex-col flex-grow relative z-10';
+            
+            const promptText = document.createElement('p');
+            promptText.className = 'text-sm text-gray-200 flex-grow prompt-display line-clamp-2 leading-relaxed';
+            promptText.textContent = prompt;
+            promptText.title = prompt;
+            
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'flex flex-col space-y-2 mt-4';
+
+            const downloadBtn = document.createElement('a');
+            downloadBtn.href = imageUrl;
+            downloadBtn.download = filename;
+            downloadBtn.className = 'download-link inline-flex items-center justify-center w-full px-3 py-2 bg-[#0B2C19] hover:bg-[#00C853] text-white hover:text-black text-sm font-bold rounded-md transition-colors border border-[#144225] hover:border-transparent shadow-sm';
+            downloadBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="w-4 h-4 mr-2">
+                    <path d="M2.75 14A1.75 1.75 0 0 1 1 12.25v-2.5a.75.75 0 0 1 1.5 0v2.5c0 .138.112.25.25.25h10.5a.25.25 0 0 0 .25-.25v-2.5a.75.75 0 0 1 1.5 0v2.5A1.75 1.75 0 0 1 13.25 14H2.75Z" />
+                    <path d="M8 12.25a.75.75 0 0 1-.75-.75V2.164l-2.22 2.22a.75.75 0 1 1-1.06-1.06l3.5-3.5a.75.75 0 0 1 1.06 0l3.5 3.5a.75.75 0 0 1-1.06 1.06l-2.22-2.22V11.5a.75.75 0 0 1-.75.75Z" />
+                </svg>
+                Download
+            `;
+
+            const rowBtns = document.createElement('div');
+            rowBtns.className = 'flex space-x-2';
+
+            const regenBtn = document.createElement('button');
+            regenBtn.className = 'flex-1 inline-flex items-center justify-center px-2 py-2 bg-[#091F11] hover:bg-amber-500 border border-[#144225] text-white hover:text-black hover:border-transparent text-xs font-bold rounded-md transition-colors';
+            regenBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1">
+                    <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z" clip-rule="evenodd" />
+                </svg>
+                Reroll
+            `;
+            regenBtn.addEventListener('click', () => openRegenModal([card]));
+
+            const previewBtn = document.createElement('button');
+            previewBtn.className = 'flex-1 inline-flex items-center justify-center px-2 py-2 bg-[#091F11] hover:bg-[#144225] border border-[#144225] text-white text-xs font-bold rounded-md transition-colors';
+            previewBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 mr-1">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                </svg>
+                View
+            `;
+            previewBtn.addEventListener('click', () => openFullscreen(imageUrl));
+
+            rowBtns.appendChild(regenBtn);
+            rowBtns.appendChild(previewBtn);
+            btnContainer.appendChild(downloadBtn);
+            btnContainer.appendChild(rowBtns);
+
+            content.appendChild(promptText);
+            content.appendChild(btnContainer);
+            
+            card.appendChild(checkbox);
+            card.appendChild(imgContainer);
+            card.appendChild(content);
+
+            return card;
+        }
+
+        function createFailureCardElement(prompt, error, aspectRatio, globalIndex) {
+            const card = document.createElement('div');
+            card.className = 'image-card-group bg-[#05170C] rounded-lg shadow-lg overflow-hidden flex flex-col transition-all duration-300 border border-red-600 aspect-square text-center p-4 justify-between items-center relative group';
+            card.dataset.globalIndex = globalIndex;
+            card.dataset.aspectRatio = aspectRatio;
+            card.dataset.originalPrompt = prompt;
+
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.title = 'Select';
+            checkbox.className = 'image-select-checkbox absolute top-3 left-3 w-5 h-5 z-10 cursor-pointer rounded border-[#144225] text-red-500 focus:ring-red-500 bg-[#020D07] shadow-md opacity-0 group-hover:opacity-100 transition-opacity checked:opacity-100';
+            checkbox.addEventListener('change', toggleBulkActions);
+
+            const content = document.createElement('div');
+            content.className = 'flex flex-col items-center justify-center flex-grow w-full mt-4';
+            
+            content.innerHTML = `
+                <div class="bg-red-500/10 p-3 rounded-full mb-3 border border-red-500/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 text-red-500">
+                        <path fill-rule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM12.75 6a.75.75 0 0 0-1.5 0v6a.75.75 0 0 0 1.5 0V6Zm-.75 10.5h.008v.008H12v-.008Z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <p class="text-sm font-extrabold text-red-500 mb-2 uppercase tracking-wide">Failed</p>
+                <p class="text-xs text-gray-300 italic mb-2 break-words line-clamp-3 prompt-display w-full px-2">"${prompt}"</p>
+                <p class="text-[10px] text-red-400 line-clamp-2 px-2">${error}</p>
+            `;
+
+            const btnContainer = document.createElement('div');
+            btnContainer.className = 'w-full mt-4';
+
+            const regenBtn = document.createElement('button');
+            regenBtn.className = 'w-full inline-flex items-center justify-center px-3 py-2 bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold rounded-md transition-colors shadow-md';
+            regenBtn.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 mr-1">
+                    <path fill-rule="evenodd" d="M15.312 11.424a5.5 5.5 0 0 1-9.201 2.466l-.312-.311h2.433a.75.75 0 0 0 0-1.5H3.989a.75.75 0 0 0-.75.75v4.242a.75.75 0 0 0 1.5 0v-2.43l.31.31a7 7 0 0 0 11.712-3.138.75.75 0 0 0-1.449-.39Zm1.23-3.723a.75.75 0 0 0 .219-.53V2.929a.75.75 0 0 0-1.5 0V5.36l-.31-.31A7 7 0 0 0 3.239 8.188a.75.75 0 1 0 1.448.389A5.5 5.5 0 0 1 13.89 6.11l.311.31h-2.432a.75.75 0 0 0 0 1.5h4.243a.75.75 0 0 0 .53-.219Z" clip-rule="evenodd" />
+                </svg>
+                Retry Request
+            `;
+            regenBtn.addEventListener('click', () => openRegenModal([card]));
+
+            btnContainer.appendChild(regenBtn);
+            
+            card.appendChild(checkbox);
+            card.appendChild(content);
+            card.appendChild(btnContainer);
+
+            return card;
+        }
+
+        // --- Regeneration & Logic Helpers ---
+        
+        function openFullscreen(src) {
+            fullscreenImg.src = src;
+            fullscreenModal.classList.remove('hidden');
+        }
+
+        function toggleBulkActions() {
+            const checkboxes = document.querySelectorAll('.image-select-checkbox');
+            const checkedBoxes = document.querySelectorAll('.image-select-checkbox:checked');
+            const failedCards = document.querySelectorAll('.image-card-group.border-red-600');
+            
+            if (checkboxes.length > 0) {
+                bulkActionBar.classList.remove('hidden');
+                selectedCountSpan.textContent = `${checkedBoxes.length} SELECTED`;
+                bulkRegenBtn.disabled = checkedBoxes.length === 0;
+                
+                if (failedCards.length > 0) {
+                    selectFailedBtn.classList.remove('hidden');
+                } else {
+                    selectFailedBtn.classList.add('hidden');
+                }
+
+                selectAllCheckbox.checked = checkedBoxes.length > 0 && checkedBoxes.length === checkboxes.length;
+            } else {
+                bulkActionBar.classList.add('hidden');
+                selectAllCheckbox.checked = false;
+            }
+        }
+
+        function updateBulkActionBar() {
+            toggleBulkActions();
+        }
+
+        function openRegenModal(cards) {
+            pendingRegenCards = cards;
+            regenCustomPrompt.value = '';
+            regenModal.classList.remove('hidden');
+        }
+
+        async function processRegeneration(cards, customPrompt) {
+            setLoading(true, "REGENERATING...");
+            let hasSuccess = false;
+
+            const CONCURRENCY_LIMIT = 10;
+            let activeGenerations = 0;
+            let currentIndex = 0;
+            let completedCount = 0;
+
+            await new Promise((resolve) => {
+                async function processRegenQueue() {
+                    if (isStopping || currentIndex >= cards.length) {
+                        if (activeGenerations === 0) resolve();
+                        return;
+                    }
+
+                    const i = currentIndex++;
+                    activeGenerations++;
+                    
+                    const card = cards[i];
+                    const globalIndex = parseInt(card.dataset.globalIndex);
+                    const aspectRatio = card.dataset.aspectRatio;
+                    const originalPrompt = card.dataset.originalPrompt;
+
+                    // Display specific loading state on regenerating card
+                    const imgContainer = card.querySelector('.relative.w-full');
+                    if (imgContainer) {
+                        let overlay = imgContainer.querySelector('.regen-overlay');
+                        if (!overlay) {
+                            overlay = document.createElement('div');
+                            overlay.className = 'regen-overlay absolute inset-0 bg-[#020D07]/90 backdrop-blur-sm flex flex-col items-center justify-center z-20 transition-opacity';
+                            overlay.innerHTML = `
+                                <div class="w-10 h-10 border-4 border-[#00C853] border-t-transparent rounded-full animate-spin mb-4 shadow-[0_0_15px_rgba(0,200,83,0.5)]"></div>
+                                <span class="text-xs text-[#00C853] font-bold tracking-widest uppercase">Regenerating</span>
+                            `;
+                            imgContainer.appendChild(overlay);
+                        }
+                    }
+                    
+                    const cardButtons = card.querySelectorAll('button, a, input');
+                    cardButtons.forEach(b => b.classList.add('opacity-50', 'pointer-events-none'));
+
+                    const buttonText = generateBtn.querySelector('span');
+                    if(buttonText) buttonText.textContent = `REGENERATING (${completedCount + 1}/${cards.length})...`;
+
+                    try {
+                        let finalPrompt = customPrompt;
+                        if (!finalPrompt) {
+                            if (regenOriginalPromptCb.checked) {
+                                finalPrompt = originalPrompt;
+                            } else {
+                                const systemInstruction = "You are a creative assistant. Analyze the given image prompt and write a new, better, and more detailed prompt in English describing the same scene, so the image generator can create a better image. Return ONLY the new prompt, no extra talk, and the context of the scene must remain the same.";
+                                finalPrompt = await generateText(systemInstruction, `Original prompt: ${originalPrompt}`);
+                            }
+                        }
+
+                        const originalData = generatedImages[globalIndex] || {};
+                        let regenOptions = originalData.options;
+                        
+                        if (!regenOptions) {
+                            regenOptions = {
+                                ccEnabled: ccToggle.checked,
+                                ccImageData: ccImageData,
+                                ccImageMimeType: ccImageMimeType,
+                                finalCcText: ccText.value,
+                                scEnabled: scToggle.checked,
+                                scImageData: scImageData,
+                                scImageMimeType: scImageMimeType,
+                                finalScText: scText.value
+                            };
+                        }
+
+                        const { base64Data } = await generateImage(finalPrompt, aspectRatio, regenOptions);
+                        const blob = await (await fetch(`data:image/png;base64,${base64Data}`)).blob();
+                        const filename = createFilename(finalPrompt, globalIndex);
+                        
+                        generatedImages[globalIndex] = {
+                            prompt: finalPrompt,
+                            blob: blob,
+                            filename: filename,
+                            aspectRatio: aspectRatio,
+                            options: regenOptions
+                        };
+
+                        const imgEl = card.querySelector('img');
+                        const downloadBtn = card.querySelector('.download-link');
+                        const promptTextEl = card.querySelector('.prompt-display');
+                        
+                        if (imgEl && downloadBtn) {
+                            const newUrl = URL.createObjectURL(blob);
+                            imgEl.src = newUrl;
+                            downloadBtn.href = newUrl;
+                            promptTextEl.textContent = finalPrompt;
+                            card.dataset.originalPrompt = finalPrompt; 
+                            
+                            const overlay = card.querySelector('.regen-overlay');
+                            if (overlay) overlay.remove();
+                            cardButtons.forEach(b => b.classList.remove('opacity-50', 'pointer-events-none'));
+                        } else {
+                            const newCard = createCardElement(blob, finalPrompt, filename, aspectRatio, globalIndex);
+                            const wasChecked = card.querySelector('.image-select-checkbox').checked;
+                            newCard.querySelector('.image-select-checkbox').checked = wasChecked;
+                            card.replaceWith(newCard);
+                        }
+
+                        hasSuccess = true;
+                    } catch (error) {
+                        console.error("Regeneration failed for card", error);
+                        const isFailureCard = !card.querySelector('img');
+                        if (isFailureCard) {
+                            const errorCard = createFailureCardElement(originalPrompt, error.message, aspectRatio, globalIndex);
+                            const wasChecked = card.querySelector('.image-select-checkbox').checked;
+                            errorCard.querySelector('.image-select-checkbox').checked = wasChecked;
+                            card.replaceWith(errorCard);
+                        } else {
+                            const overlay = card.querySelector('.regen-overlay');
+                            if (overlay) overlay.remove();
+                            cardButtons.forEach(b => b.classList.remove('opacity-50', 'pointer-events-none'));
+                        }
+                        showToast("Regeneration failed. Check console.", "error");
+                    } finally {
+                        completedCount++;
+                        activeGenerations--;
+                        if ((isStopping && activeGenerations === 0) || (completedCount === cards.length)) {
+                            resolve();
+                        } else {
+                            processRegenQueue();
+                        }
+                    }
+                }
+
+                const initialWorkers = Math.min(CONCURRENCY_LIMIT, cards.length);
+                for (let w = 0; w < initialWorkers; w++) {
+                    processRegenQueue();
+                }
+            });
+
+            setLoading(false);
+            if (isStopping) {
+                showToast("Regeneration stopped.", "info");
+                isStopping = false;
+            } else {
+                showToast("Regeneration complete!", "success");
+            }
+            
+            document.querySelectorAll('.image-select-checkbox').forEach(cb => cb.checked = false);
+            updateBulkActionBar();
+            
+            const hasValidImages = generatedImages.some(img => img && img.blob);
+            if (hasValidImages) downloadAllBtn.disabled = false;
+        }
+
+        // --- General Utility Functions ---
+        
+        async function generateText(systemPrompt, userQuery) {
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                ]
+            };
+
+            const response = await fetch(TEXT_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`Text API request failed with status ${response.status}: ${errorBody}`);
+            }
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!text) {
+                const finishReason = result.candidates?.[0]?.finishReason;
+                throw new Error(`Text API response empty. Finish reason: ${finishReason || 'Unknown'}`);
+            }
+            return text;
+        }
+
+        async function generateTextWithImage(promptText, base64Data, mimeType) {
+            const payload = {
+                contents: [{
+                    role: 'user',
+                    parts: [
+                        { text: promptText },
+                        { inlineData: { mimeType: mimeType, data: base64Data } }
+                    ]
+                }],
+                safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                ]
+            };
+
+            const response = await fetch(TEXT_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (!response.ok) {
+                const errorBody = await response.text();
+                throw new Error(`Vision API request failed with status ${response.status}: ${errorBody}`);
+            }
+
+            const result = await response.json();
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+
+            if (!text) {
+                const finishReason = result.candidates?.[0]?.finishReason;
+                throw new Error(`Vision API response empty. Finish reason: ${finishReason || 'Unknown'}`);
+            }
+            return text;
+        }
+
+        async function handleDownloadAll() {
+            if (generatedImages.length === 0) {
+                showToast("No images to download.", "error");
+                return;
+            }
+
+            downloadAllBtn.disabled = true;
+            downloadAllBtn.querySelector('span').textContent = 'Zipping...';
+
+            try {
+                const zip = new JSZip();
+                for (const image of generatedImages) {
+                    if (image && image.blob) {
+                        zip.file(image.filename, image.blob);
+                    }
+                }
+
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(zipBlob);
+                link.download = `generated_images_${Date.now()}.zip`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+            } catch (error) {
+                console.error("Failed to create zip file:", error);
+                showToast("Failed to create zip file.", "error");
+            } finally {
+                downloadAllBtn.disabled = false;
+                downloadAllBtn.querySelector('span').textContent = 'Download All (.zip)';
+            }
+        }
+
+        function getPrompts() {
+            return promptInput.value
+                .split('\n')
+                .map(prompt => prompt.trim())
+                .filter(prompt => prompt.length > 0);
+        }
+
+        function clearGrid() {
+            imageGrid.innerHTML = '';
+            placeholder.classList.add('hidden');
+            imageGrid.appendChild(placeholder);
+            placeholder.classList.remove('hidden');
+            updateBulkActionBar(); 
+        }
+
+        function hidePlaceholder() {
+            if (placeholder) {
+                placeholder.classList.add('hidden');
+            }
+        }
+
+        function getAspectRatioClass(aspectRatio) {
+            switch (aspectRatio) {
+                case 'portrait': return 'aspect-[9/16]';
+                case 'landscape': return 'aspect-[16/9]';
+                case 'portrait_4_5': return 'aspect-[3/4]';
+                case 'square': default: return 'aspect-square';
+            }
+        }
+
+		function setLoading(isLoading, initialText = null) {
+		    const buttonText = generateBtn.querySelector('span');
+		    const buttonIcon = generateBtn.querySelector('svg');
+
+		    if (isLoading) {
+		        generateBtn.disabled = true;
+                promptInput.disabled = true;
+                aspectRatioSelect.disabled = true;
+                ccToggle.disabled = true;
+                scToggle.disabled = true;
+		        downloadAllBtn.disabled = true;
+		        stopBtn.classList.remove('hidden');
+                bulkRegenBtn.disabled = true; 
+
+		        if (buttonText) buttonText.textContent = initialText || 'GENERATING...';
+
+		        const existingSpinner = generateBtn.querySelector('.spinner');
+		        if (existingSpinner) existingSpinner.remove();
+		        
+		        const spinnerEl = document.createElement('div');
+		        spinnerEl.className = 'spinner';
+		        generateBtn.prepend(spinnerEl);
+		        
+		        if (buttonIcon) buttonIcon.classList.add('hidden');
+		    } else {
+		        generateBtn.disabled = false;
+                promptInput.disabled = false;
+                aspectRatioSelect.disabled = false;
+                ccToggle.disabled = false;
+                scToggle.disabled = false;
+		        stopBtn.classList.add('hidden');
+		        
+		        if (generatedImages.some(img => img && img.blob)) {
+		            downloadAllBtn.disabled = false;
+		        }
+		        
+		        if (buttonText) buttonText.textContent = 'GENERATE IMAGES';
+		        
+		        const spinnerEl = generateBtn.querySelector('.spinner');
+		        if (spinnerEl) spinnerEl.remove();
+		        if (buttonIcon) buttonIcon.classList.remove('hidden');
+		    }
+		}
+		
+        function showToast(message, type = 'error') {
+            toastMessage.textContent = message;
+
+            if (type === 'success') toast.style.backgroundColor = '#00C853'; 
+            else if (type === 'info') toast.style.backgroundColor = '#3b82f6'; 
+            else toast.style.backgroundColor = '#ef4444'; 
+
+            toast.classList.add('show');
+            setTimeout(() => { toast.classList.remove('show'); }, 3000);
+        }
+
+        function createFilename(prompt, index) {
+            return `${String(index + 1).padStart(3, '0')}.png`;
+        }
+        
+        window.onload = () => {
+             promptInput.dispatchEvent(new Event('input'));
+        };
+    </script>
+</body>
+</html>

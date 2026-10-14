@@ -1,0 +1,8 @@
+# Logged-in Chrome profiles: contain Google session cookies. NEVER commit.
+profiles/
+# Generated images and run logs
+output/
+logs/
+node_modules/
+.DS_Store
+*.log
